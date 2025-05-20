@@ -8,8 +8,21 @@ Usage:
     python calculate_roi.py
 """
 
-import pandas as pd
+import logging
 import os
+
+import pandas as pd
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+USDT_BALANCE = 'usdt_balance'
+UNREALIZED_PNL = "unrealized_pnl"
+
 
 def load_data():
     """Load transaction and account value data from CSV files"""
@@ -41,25 +54,110 @@ def calculate_roi_by_round():
     4. Distributing the final account value proportionally based on each investor's share
     5. Calculating ROI based on this projected value and any withdrawals
     """
+    logger.info("Loading data for ROI calculation")
     # Load data
     transactions_df, account_values_df = load_data()
 
     # Calculate total account value (USDT balance + unrealized PnL)
-    account_values_df['total_value'] = account_values_df['usdt_balance'] + account_values_df['unrealized_pnl']
+    account_values_df['total_value'] = account_values_df[USDT_BALANCE] + account_values_df[UNREALIZED_PNL]
+    logger.info("Calculated total account values")
 
     # Get the final account value (from the latest date)
     final_account_value = account_values_df.iloc[-1]['total_value']
+    logger.info(f"Final account value: ${final_account_value:.2f}")
 
     # Group transactions by investor and round
     investor_round_data = {}
     transaction_log = {}
 
-    # Process all transactions and create a transaction log
+    # Group transactions by date to ensure same-day investments use the same start_value and ROI
+    date_to_start_value = {}
+    date_to_investments = {}
+
+    # First pass: calculate start_value for each unique date and group investments by date
+    for _, transaction in transactions_df.iterrows():
+        date = transaction['date']
+        amount = transaction['amount']
+        date_str = date.strftime('%Y-%m-%d')
+
+        # Only process deposits (negative amounts)
+        if amount < 0:
+            # Calculate start_value for this date if not already done
+            if date_str not in date_to_start_value:
+                # Find the account value on the investment date
+                start_idx = account_values_df['date'].searchsorted(date)
+                if start_idx >= len(account_values_df):
+                    start_idx = len(account_values_df) - 1
+                start_value = account_values_df.iloc[start_idx]['total_value']
+                date_to_start_value[date_str] = start_value
+                date_to_investments[date_str] = []
+                logger.info(f"Date {date_str}: start_value = {start_value:.2f}")
+
+            # Add this investment to the date's investment list
+            date_to_investments[date_str].append({
+                'investor': transaction['name'],
+                'round_name': transaction['code'],
+                'amount': abs(amount),
+                'transaction_id': transaction['id']
+            })
+
+    # Second pass: calculate weighted_investment for each date
+    all_dates = sorted(date_to_investments.keys())
+
+    # Calculate weighted investments based on the account value at each investment date
+    # This approach ensures that when a new investment is made, the shares are distributed
+    # proportionally based on the current account value
+
+    # Initialize variables to track the account values and investments
+    date_to_weighted_investment = {}
+
+    for i, date_str in enumerate(all_dates):
+        start_value = date_to_start_value[date_str]
+        investments = date_to_investments[date_str]
+
+        # Calculate total investment amount for this date
+        total_investment_amount = sum(inv['amount'] for inv in investments)
+
+        # For the first date, the account value is just the investment amount
+        if i == 0:
+            date_to_weighted_investment[date_str] = 1.0
+            logger.info(f"Date {date_str}: First investment = {total_investment_amount:.2f}, "
+                       f"weighted = 1.0")
+        else:
+            # For subsequent dates, use the start_value as the current account value
+            # This accounts for growth between investments
+
+            # Calculate the new investment's share based on the current account value
+            new_investment_share = total_investment_amount / start_value
+
+            # Adjust previous dates' weights to maintain the sum at 1.0
+            for prev_date in date_to_weighted_investment:
+                date_to_weighted_investment[prev_date] *= (1.0 - new_investment_share)
+
+            # Store the weighted investment for this date
+            date_to_weighted_investment[date_str] = new_investment_share
+
+            logger.info(f"Date {date_str}: investment = {total_investment_amount:.2f}, "
+                       f"account value before = {start_value:.2f}, "
+                       f"account value after = {start_value + total_investment_amount:.2f}, "
+                       f"weighted = {new_investment_share:.6f}")
+
+        # Log all dates' weighted investments for debugging
+        for d in all_dates:
+            if d in date_to_weighted_investment:
+                logger.info(f"  - Date {d}: weighted = {date_to_weighted_investment[d]:.6f}")
+
+        # Verify that the sum of all weighted investments is 1.0
+        total_weighted = sum(date_to_weighted_investment.values())
+        logger.info(f"Total weighted investment: {total_weighted:.6f}")
+
+    # Third pass: process all transactions and create transaction logs
     for _, transaction in transactions_df.iterrows():
         investor = transaction['name']
         round_name = transaction['code']
         amount = transaction['amount']
         date = transaction['date']
+        date_str = date.strftime('%Y-%m-%d')
         key = f"{investor}_{round_name}"
 
         # Initialize data structures if needed
@@ -86,16 +184,22 @@ def calculate_roi_by_round():
 
         # Process deposits (negative amounts)
         if amount < 0:
-            # Find the account value on the investment date
-            start_idx = account_values_df['date'].searchsorted(date)
-            if start_idx >= len(account_values_df):
-                start_idx = len(account_values_df) - 1
-            start_value = account_values_df.iloc[start_idx]['total_value']
-
             # Update investment data
             investment_amount = abs(amount)
             investor_round_data[key]['total_investment'] += investment_amount
-            investor_round_data[key]['weighted_investment'] += investment_amount / start_value
+
+            # Calculate this investor's share of the date's weighted investment
+            if date_str in date_to_investments and date_str in date_to_weighted_investment:
+                date_total_investment = sum(inv['amount'] for inv in date_to_investments[date_str])
+                if date_total_investment > 0:
+                    investor_share = investment_amount / date_total_investment
+                    investor_weighted = investor_share * date_to_weighted_investment[date_str]
+                    investor_round_data[key]['weighted_investment'] += investor_weighted
+
+                    logger.info(f"Investor {investor} ({round_name}) on {date_str}: "
+                               f"investment = {investment_amount:.2f}, "
+                               f"share = {investor_share:.6f}, "
+                               f"weighted = {investor_weighted:.6f}")
 
             # Track first deposit date
             if investor_round_data[key]['first_deposit_date'] is None or date < investor_round_data[key]['first_deposit_date']:
@@ -103,12 +207,43 @@ def calculate_roi_by_round():
 
         # Process withdrawals (positive amounts)
         else:
-            investor_round_data[key]['total_withdrawal'] += amount
+            withdrawal_amount = amount
+            investor_round_data[key]['total_withdrawal'] += withdrawal_amount
+
+            # Calculate the proportion of the investor's weighted_investment to reduce
+            current_weighted = investor_round_data[key]['weighted_investment']
+            if current_weighted > 0:
+                # Calculate what percentage of their investment they're withdrawing
+                total_invested = investor_round_data[key]['total_investment']
+                withdrawal_percentage = min(withdrawal_amount / (total_invested - investor_round_data[key]['total_withdrawal'] + withdrawal_amount), 1.0)
+
+                # Reduce their weighted_investment proportionally
+                weighted_reduction = current_weighted * withdrawal_percentage
+                investor_round_data[key]['weighted_investment'] -= weighted_reduction
+
+                # Redistribute the reduced weighted_investment among other investors proportionally
+                remaining_weighted = sum(data['weighted_investment'] for k, data in investor_round_data.items() if k != key)
+                if remaining_weighted > 0:
+                    for k, data in investor_round_data.items():
+                        if k != key and data['weighted_investment'] > 0:
+                            # Increase proportionally to their current weighted_investment
+                            data['weighted_investment'] += (data['weighted_investment'] / remaining_weighted) * weighted_reduction
+
+                # Verify that the sum of all weighted investments is still 1.0 after redistribution
+                total_after_withdrawal = sum(data['weighted_investment'] for data in investor_round_data.values())
+                logger.info(f"Investor {investor} ({round_name}) on {date_str}: "
+                           f"withdrawal = {withdrawal_amount:.2f}, "
+                           f"withdrawal_percentage = {withdrawal_percentage:.6f}, "
+                           f"weighted_reduction = {weighted_reduction:.6f}, "
+                           f"new_weighted = {investor_round_data[key]['weighted_investment']:.6f}, "
+                           f"total_weighted_after = {total_after_withdrawal:.6f}")
 
     # Calculate the total weighted investment across all investors and rounds
     total_weighted_investment = sum(data['weighted_investment'] for data in investor_round_data.values())
+    logger.info(f"Total weighted investment: {total_weighted_investment:.6f}")
 
     # Calculate final asset values and ROI for each investor and round
+    logger.info("Calculating final asset values and ROI for each investor and round")
     results = []
     for key, data in investor_round_data.items():
         # Calculate the proportional share of the final account value
@@ -142,7 +277,10 @@ def calculate_roi_by_round():
 
         results.append(result)
 
+    logger.info(f"Calculated ROI for {len(results)} investor-round combinations")
     return results
+
+
 
 def main():
     """Main function to calculate and display ROI"""
@@ -178,6 +316,7 @@ def main():
     # Print the formatted results as a dictionary
     import json
     print(json.dumps(formatted_results, indent=2))
+
 
 if __name__ == "__main__":
     main()

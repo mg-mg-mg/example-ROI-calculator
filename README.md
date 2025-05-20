@@ -24,9 +24,9 @@ $ python calculate_roi.py
     "Round1": {
       "first_deposit_date": "2024-05-01",
       "total_investment": "$1000.00",
-      "share_percentage": "42.32%",
-      "final_asset_value": "$8464.14",
-      "roi": "746.41%",
+      "share_percentage": "21.51%",
+      "final_asset_value": "$4301.05",
+      "roi": "330.10%",
       "transaction_log": [
         {
           "type": "deposit",
@@ -41,9 +41,9 @@ $ python calculate_roi.py
     "Round1": {
       "first_deposit_date": "2024-05-05",
       "total_investment": "$2000.00",
-      "share_percentage": "26.45%",
-      "final_asset_value": "$5290.09",
-      "roi": "164.50%",
+      "share_percentage": "35.84%",
+      "final_asset_value": "$7168.41",
+      "roi": "258.42%",
       "transaction_log": [
         {
           "type": "deposit",
@@ -56,9 +56,9 @@ $ python calculate_roi.py
     "Round2": {
       "first_deposit_date": "2024-05-15",
       "total_investment": "$1000.00",
-      "share_percentage": "2.56%",
-      "final_asset_value": "$512.98",
-      "roi": "21.30%",
+      "share_percentage": "2.26%",
+      "final_asset_value": "$451.26",
+      "roi": "15.13%",
       "transaction_log": [
         {
           "type": "deposit",
@@ -85,9 +85,9 @@ $ python calculate_roi.py
     "Round1": {
       "first_deposit_date": "2024-05-10",
       "total_investment": "$3000.00",
-      "share_percentage": "15.87%",
-      "final_asset_value": "$3174.05",
-      "roi": "5.80%",
+      "share_percentage": "34.41%",
+      "final_asset_value": "$6881.68",
+      "roi": "129.39%",
       "transaction_log": [
         {
           "type": "deposit",
@@ -100,9 +100,9 @@ $ python calculate_roi.py
     "Round2": {
       "first_deposit_date": "2024-05-15",
       "total_investment": "$5000.00",
-      "share_percentage": "12.79%",
-      "final_asset_value": "$2558.75",
-      "roi": "51.17%",
+      "share_percentage": "5.99%",
+      "final_asset_value": "$1197.60",
+      "roi": "23.95%",
       "transaction_log": [
         {
           "type": "deposit",
@@ -130,236 +130,105 @@ $ python calculate_roi.py
 
 ---
 
-_[English Version]_
-## 1. The ROI calculation method
+## English Version
 
-The ROI (Return on Investment) that this Python code calculates is a way to see how much your investment has earned or lost, expressed as a percentage. Here, we have multiple investors (Joe, Bob, Alice) who have put money into (deposited) and taken money out of (withdrawn) an account at different times. The code figures out each person's investment performance by looking at when and how much they invested or withdrew, and how the account's total value changed over time.
+### Overview
 
-## 2. What is ROI?
+This Python script calculates the Return on Investment (ROI) for multiple investors across different investment rounds. It processes transaction data (deposits and withdrawals) and account value data (USDT balance and unrealized PnL) from CSV files to determine each investor's proportional share of the total account value and their ROI.
 
-ROI is simply a number that shows "how much I've earned (or lost) compared to the money I invested." For example, if you invest \$100 and later have \$120, you've made \$20. To find the ROI, you divide that \$20 by your original \$100 and multiply by 100 to get 20%. Here, since multiple people are investing and withdrawing at different times, it gets a bit more complicated, but the basic idea is the same. We're looking at when and how much each person invested or withdrew, and how the account grew, to calculate each person's return.
+### How It Works
 
-What Data Are We Using?
-The code uses two types of data:
+1. **Data Loading**:
+   - The script reads `transaction_data.csv` and `account_value_data.csv` from the same directory.
+   - Dates in both files are converted to datetime format for processing.
 
-### a. Transaction Data
+2. **Account Value Calculation**:
+   - The total account value is computed as the sum of the USDT balance and unrealized profit and loss (PnL).
+   - The final account value is taken from the latest date in the account value data.
 
-This records who (Joe, Bob, Alice), when, and how much money was deposited or withdrawn.
-For example: "Joe deposited \$1000 on May 1, 2024."
-Deposits are shown as negative numbers (-), and withdrawals as positive numbers (+).
+3. **Transaction Processing**:
+   - Transactions are grouped by investor and round.
+   - **Deposits** (negative amounts in the data) are processed to calculate a weighted investment based on the account value at the time of investment.
+   - **Withdrawals** (positive amounts) reduce the investor’s weighted investment, redistributing the reduced share proportionally among other investors.
 
-### b. Account Value Data
+4. **ROI Calculation**:
+   - The final asset value for each investor-round is determined by their share of the total weighted investment applied to the final account value.
+   - ROI is calculated with the formula:
+     - ROI = (final asset value - total investment + total withdrawal) / total investment × 100
+    
+5. **Output**:
+   - Results are formatted as a JSON dictionary, detailing each investor’s rounds with total investment, share percentage, final asset value, ROI, and transaction logs.
 
-This shows how the total value of the account changed over time.
-The account value is calculated as the cash balance (usdt_balance) plus any profits or losses from investments (unrealized_pnl).
-For example: "On May 1, the account was worth \$5000, and by May 20, it grew to \$20,000."
+### Example Output
 
-## 3. How Is ROI Calculated?
+The script outputs results for investors Joe, Bob, and Alice. Below is a summary of the provided output:
 
-Since the account size changes over time and people invest at different points, it wouldn't be fair to just compare "how much I invested" to "how much I have now." Instead, the code calculates each investment's "weight" based on the account's value at the time of investment. This way, it fairly accounts for when the money was invested and how the account grew afterward. Let's break it down step by step:
-
-### a. Load the Data
-
-The code reads the transaction and account value data from CSV files and organizes the dates.
-
-### b. Find the Final Account Value
-
-It looks at the most recent date in the account value data and calculates the total value (cash + profits/losses).
-For example, if on May 20 the account is worth \$20,000, that's the final value.
-
-### c. Calculate Each Investor's Investment Weight
-
-Every time someone invests, the code looks at the account's value on that day and calculates a "weight" for that investment.
-For example:
-If Joe invests \$1000 on May 1 when the account is worth \$5000, his weight is 1000 / 5000 = 0.2 (20%).
-If Bob invests \$2000 on May 5 when the account is worth \$7000, his weight is 2000 / 7000 ≈ 0.286 (28.6%).
-This weight reflects how much of the account's value at that time was contributed by the investor.
-
-### d. Sum Up All the Weights
-
-The code adds up the weights from all investments. For example, Joe (0.2) + Bob (0.286) + others might total 1.0.
-
-### e. Distribute the Final Account Value
-
-Each investor's share of the final account value is calculated based on their weight relative to the total weights.
-For example, if Joe's weight is 0.2 and the total weight is 1.0, his share is 0.2 / 1.0 = 20% of the final value.
-So, if the final value is \$20,000, Joe's share is 20% of that, which is \$4000.
-
-### f. Calculate ROI
-
-For each investor, the ROI is calculated using their share of the final value, minus what they invested, plus any withdrawals.
-The formula is:
-ROI = [(final share - total invested + total withdrawn) / total invested] × 100
-For example, if Joe invested \$1000 and his final share is \$4000, his ROI is [(4000 - 1000) / 1000] × 100 = 300%.
-
-### g. Organize the Transaction History
-
-The code also sorts and displays each investor's deposits and withdrawals in chronological order.
-
-## 4. Understanding the Output with Examples
-The output shows the investment performance for Joe, Bob, and Alice. Let's look at a couple of examples:
-
-Joe - Round1
-
-- First Deposit Date: May 1, 2024
-- Total Invested: \$1000
-- Final Share: \$8464.14
-- ROI: 746.41%
-- Interpretation: Joe invested \$1000 on May 1, and because the account grew a lot, his share became \$8464.14.
-
-```
-ROI = [(8464.14 - 1000) / 1000] × 100 ≈ 746.41%
-```
-Bob - Round2
-
-- First Deposit Date: May 15, 2024
-- Total Invested: \$1000
-- Withdrawals: \$300 + \$400 = \$700
-- Final Share: \$512.98
-- ROI: 21.30%
-- Interpretation: Bob invested \$1000 and withdrew \$700. His remaining share is \$512.98, so:
-
-```
-ROI = [(512.98 - 1000 + 700) / 1000] × 100 ≈ 21.30%
-```
-
-Alice - Round2
-- Total Invested: \$5000 (\$4000 + \$1000)
-- Withdrawals: \$5000
-- Final Share: \$2558.75
-- ROI: 51.17%
-- Interpretation: After accounting for her investments and withdrawals:
-
-```
-ROI = [(2558.75 - 5000 + 5000) / 5000] × 100 ≈ 51.17%
-```
-
-## 5. Why Use This Method?
-This method is fair because it considers both when the investments were made and how the account grew over time.
-
-- Early investors might see higher ROI because their money had more time to grow (like Joe).
-- Later investors or those who withdrew money will see their contributions reflected accordingly (like Bob and Alice).
-
-Instead of just looking at "how much did I invest," this method accounts for "when did I invest and how much did my investment contribute to the account's growth," giving a more accurate picture of each person's return.
+- **Joe**:
+  - **Round1**: Invested \$1000 on 2024-05-01, share percentage 21.51%, final asset value \$4301.05, ROI 330.10%.
+- **Bob**:
+  - **Round1**: Invested \$2000 on 2024-05-05, share percentage 35.84%, final asset value \$7168.41, ROI 258.42%.
+  - **Round2**: Invested \$1000 on 2024-05-15, withdrew \$300 and \$400 later, share percentage 2.26%, final asset value \$451.26, ROI 15.13%.
+- **Alice**:
+  - **Round1**: Invested \$3000 on 2024-05-10, share percentage 34.41%, final asset value \$6881.68, ROI 129.39%.
+  - **Round2**: Invested \$5000 total (including a \$4000 deposit, \$5000 withdrawal, and \$1000 deposit), share percentage 5.99%, final asset value \$1197.60, ROI 23.95%.
 
 
+### Summary
 
+This method fairly distributes returns by considering the timing of investments and account growth.
 
+- Early investors benefit from more time for account growth, so their ROI may be higher.
+- Those who invest later, when the account has already grown significantly, or withdraw funds, have a reduced share.
+- This approach goes beyond simply tracking "who invested how much" by factoring in "when they invested and how much their money contributed," resulting in a more accurate calculation of returns.
 
 ---
 
-_[Korean Version]_
-## 1. ROI 계산 방식을 쉽게 풀어서 설명하기
+## 한글 버전
 
-이 파이썬 코드가 계산하는 ROI(Return on Investment, 투자 수익률)는 투자한 돈이 얼마나 수익을 냈는지, 또는 손실을 봤는지를 퍼센트(%)로 나타내는 방법이에요. 여기서는 여러 투자자(Joe, Bob, Alice)가 각기 다른 시점에 돈을 넣고(입금) 빼며(출금) 계좌에 투자한 상황에서, 각자의 투자 성과를 어떻게 계산하는지 설명할게요.
+### 개요
 
-## 2. ROI가 뭔가요?
+이 파이썬 스크립트는 여러 투자자의 다양한 투자 라운드에 대한 투자 수익률(ROI)을 계산합니다. CSV 파일에서 거래 데이터(입금 및 출금)와 계정 가치 데이터(USDT 잔액 및 미실현 손익)를 처리하여 각 투자자의 총 계정 가치에 대한 비례 지분과 ROI를 계산합니다.
 
-ROI는 간단히 말해 "내가 넣은 돈 대비 얼마나 벌었나(혹은 잃었나)"를 보여주는 숫자예요. 예를 들어, 100만 원을 투자했는데 나중에 120만 원이 됐다면, 20만 원을 번 거죠. 이걸 투자한 돈(100만 원)으로 나누고 100을 곱하면 ROI가 20%가 됩니다.
+### 작동 방식
 
-여기서는 계좌에 여러 사람이 돈을 넣고 빼는 상황이라 조금 복잡해 보이지만, 기본 아이디어는 똑같아요. 각 투자자가 언제, 얼마를 넣고 뺐는지 보고, 계좌 전체 가치가 어떻게 변했는지 고려해서 각자의 수익률을 계산하는 거예요.
+1. **데이터 로딩**:
+   - 스크립트는 동일한 디렉토리에서 `transaction_data.csv`와 `account_value_data.csv`를 읽습니다.
+   - 두 파일의 날짜는 처리하기 쉽도록 datetime 형식으로 변환됩니다.
 
-어떤 데이터를 사용하는 걸까요?
-이 코드는 두 가지 데이터를 사용해요:
+2. **계정 가치 계산**:
+   - 총 계정 가치는 USDT 잔액과 미실현 손익(PnL)의 합으로 계산됩니다.
+   - 최종 계정 가치는 계정 가치 데이터의 가장 최근 날짜에서 가져옵니다.
 
-### a. 거래 데이터 (Transaction Data)
+3. **거래 처리**:
+   - 거래는 투자자와 라운드별로 그룹화됩니다.
+   - **입금**(데이터에서 음수 금액)은 투자 시점의 계정 가치를 기준으로 가중 투자 금액을 계산합니다.
+   - **출금**(양수 금액)은 투자자의 가중 투자 금액을 줄이고, 감소된 지분을 다른 투자자들에게 비례적으로 재분배합니다.
 
-누가(Joe, Bob, Alice), 언제, 얼마를 넣었거나 뺐는지 기록이에요.
-예: "Joe가 2024년 5월 1일에 1000달러를 입금했어요" 같은 정보죠.
-입금은 음수(-)로, 출금은 양수(+)로 표시돼 있어요.
+4. **ROI 계산**:
+   - 각 투자자-라운드의 최종 자산 가치는 총 가중 투자에 대한 지분을 최종 계정 가치에 적용하여 계산됩니다.
+   - ROI는 다음 공식으로 계산됩니다:
+     - ROI = (최종 자산 가치 - 총 투자 금액 + 총 출금 금액) / 총 투자 금액 × 100
+     
+5. **출력**:
+   - 결과는 JSON 딕셔너리로 형식화되며, 각 투자자의 라운드별 총 투자 금액, 지분 비율, 최종 자산 가치, ROI 및 거래 로그를 자세히 보여줍니다.
 
-### b. 계좌 가치 데이터 (Account Value Data)
+### 예시 출력
 
-계좌의 총 가치가 날짜별로 어떻게 변했는지 보여줘요.
-계좌 가치 = 현금 잔고(usdt_balance) + 투자 수익/손실(unrealized_pnl).
-예: "5월 1일에 계좌 가치가 5000달러였고, 5월 20일에는 2만 달러가 됐다" 이런 식이에요.
+스크립트는 Joe, Bob, Alice의 결과를 출력합니다. 제공된 출력의 요약은 다음과 같습니다:
 
-## 3. ROI 계산 과정: 어떻게 하나요?
+- **Joe**:
+  - **Round1**: 2024-05-01에 \$1000 투자, 지분 비율 21.51%, 최종 자산 가치 \$4301.05, ROI 330.10%.
+- **Bob**:
+  - **Round1**: 2024-05-05에 \$2000 투자, 지분 비율 35.84%, 최종 자산 가치 \$7168.41, ROI 258.42%.
+  - **Round2**: 2024-05-15에 \$1000 투자, 이후 \$300 및 \$400 출금, 지분 비율 2.26%, 최종 자산 가치 \$451.26, ROI 15.13%.
+- **Alice**:
+  - **Round1**: 2024-05-10에 \$3000 투자, 지분 비율 34.41%, 최종 자산 가치 \$6881.68, ROI 129.39%.
+  - **Round2**: 총 \$5000 투자(\$4000 입금, \$5000 출금, \$1000 입금 포함), 지분 비율 5.99%, 최종 자산 가치 \$1197.60, ROI 23.95%.
 
-계좌에 돈을 넣는 시점마다 계좌 크기가 다르고, 그 뒤로 가치가 오르거나 내리니까, 단순히 "내가 넣은 돈 대비 지금 얼마가 됐나"로 계산하면 불공평할 수 있어요. 그래서 이 코드는 투자 시점과 계좌 크기를 고려해서 공정하게 나눠 계산해요. 단계별로 쉽게 풀어볼게요:
+### 정리
 
-### a. 데이터 불러오기
+이 방식은 투자 시점과 계좌 성장을 고려해서 공정하게 나누는 방법입니다.
 
-거래 데이터와 계좌 가치 데이터를 CSV 파일에서 읽어와요.
-날짜도 잘 정리해서 준비합니다. 
-
-### b. 계좌의 최종 가치 구하기
-
-계좌 가치 데이터에서 가장 최근 날짜의 총 가치를 계산해요(현금 + 수익/손실).
-예: 5월 20일에 계좌 가치가 2만 달러라면, 이게 최종 가치예요.
-
-### c. 각 투자자의 투자 비중 계산하기
-
-투자자가 돈을 넣을 때마다, 그 시점의 계좌 가치와 비교해서 "비중"을 계산해요.
-예를 들어:
-5월 1일에 Joe가 1000달러를 넣었는데, 그때 계좌 가치가 5000달러였다면, Joe의 비중은 1000 / 5000 = 0.2(20%)이에요.
-5월 5일에 Bob이 2000달러를 넣었는데, 그때 계좌 가치가 7000달러였다면, Bob의 비중은 2000 / 7000 ≈ 0.286(28.6%)예요.
-이렇게 "비중"을 계산하면, 돈을 넣은 시점에 따라 공정하게 나눌 수 있어요.
-
-### d. 모든 투자 비중 합치기
-
-모든 투자자의 비중을 더해요. 예를 들어, Joe(0.2) + Bob(0.286) + 기타 투자자 비중 = 총합(예: 1.0).
-
-### e. 최종 계좌 가치를 각 투자자에게 나누기
-
-각 투자자의 비중을 총합으로 나눠서, 최종 계좌 가치에서 각자가 차지하는 몫을 구해요.
-예: Joe의 비중이 0.2이고 총합이 1.0이면, Joe의 몫은 0.2 / 1.0 = 20%.
-최종 가치 2만 달러의 20% = 4000달러가 Joe의 "최종 자산 가치"예요.
-
-### f. ROI 계산하기
-
-각 투자자의 최종 자산 가치에서 투자한 금액을 빼고, 출금한 금액을 더해줘요(출금은 투자한 돈이 줄어든 거니까). 그걸 투자 금액으로 나누고 100을 곱하면 ROI가 나와요.
-공식:
-ROI = [(최종 자산 가치 - 총 투자금 + 총 출금액) / 총 투자금] × 100
-예: Joe가 1000달러를 투자했고, 최종 자산 가치가 4000달러라면:
-ROI = [(4000 - 1000) / 1000] × 100 = 300%
-
-### g. 거래 내역 정리하기
-
-각 투자자가 언제 얼마를 넣고 뺐는지 날짜순으로 정리해서 보여줘요.
-
-## 4. 출력 결과 예시로 이해하기
-
-출력을 보면 Joe, Bob, Alice의 투자 성과가 나와요. 하나씩 살펴볼게요:
-
-Joe - Round1
-- 첫 입금 날짜: 2024-05-01
-- 총 투자금: $1000
-- 최종 자산 가치: $8464.14
-- ROI: 746.41%
-- 해석: Joe가 5월 1일에 1000달러를 넣었는데, 계좌가 엄청 커져서 그의 몫이 8464달러가 됐어요.
-
-```
-ROI = [(8464.14 - 1000) / 1000] × 100 ≈ 746.41%
-```
-
-Bob - Round2
-- 첫 입금 날짜: 2024-05-15
-- 총 투자금: $1000
-- 출금: $300 + $400 = $700
-- 최종 자산 가치: $512.98
-- ROI: 21.30%
-- 해석: Bob이 1000달러를 넣고 700달러를 뺐어요. 남은 몫이 512.98달러니까:
-
-```
-ROI = [(512.98 - 1000 + 700) / 1000] × 100 ≈ 21.30%
-```
-
-Alice - Round2
-- 총 투자금: $5000(4000 + 1000)
-- 출금: $5000
-- 최종 자산 가치: $2558.75
-- ROI: 51.17%
-- 해석: 복잡해 보이지만, 투자와 출금을 고려해서 계산하면:
-```
-ROI = [(2558.75 - 5000 + 5000) / 5000] × 100 ≈ 51.17%
-```
-
-## 5. 왜 이렇게 계산하나요?
-
-이 방식은 투자 시점과 계좌 성장을 고려해서 공정하게 나누는 방법이에요.
-
-- 일찍 투자한 사람은 계좌가 더 많이 성장할 시간적 이점이 있으니 ROI가 높을 수 있어요(Joe처럼).
-- 나중에 투자하거나 돈을 뺀 사람은 그만큼 덜 반영돼요(Bob, Alice처럼).
-
-이렇게 하면 단순히 "누가 얼마 넣었나"가 아니라 "언제 넣었고, 그 돈이 얼마나 기여했나"를 반영해서 더 정확한 수익률을 알 수 있어요.
+- 일찍 투자한 사람은 계좌가 더 많이 성장할 시간적 이점이 있으니 ROI가 높을 수 있습니다.
+- 이미 계좌가 많이 성장한 시점에 투자하거나, 돈을 뺀 사람은 그만큼 덜 반영됩니다.
+- 이렇게 하면 단순히 "누가 얼마 넣었나"가 아니라 "언제 넣었고, 그 돈이 얼마나 기여했나"를 반영해서 더 정확한 수익률을 알 수 있습니다.
